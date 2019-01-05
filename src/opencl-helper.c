@@ -1,3 +1,6 @@
+#define num_plat 4
+#define plat_id 1
+
 /* Find a GPU or CPU associated with the first available platform 
 
 The `platform` structure identifies the first platform identified by the 
@@ -11,23 +14,28 @@ associated with the platform. Because the second parameter is
 cl_device_id
 clh_create_device ()
 {
-   cl_platform_id platform;
+   cl_platform_id platform[num_plat];
    cl_device_id dev;
    int err;
 
    /* Identify a platform */
-   err = clGetPlatformIDs(1, &platform, NULL);
+   err = clGetPlatformIDs(num_plat, platform, NULL);
    if(err < 0) {
       perror("Couldn't identify a platform");
       exit(1);
    } 
 
+   char infostr[100];
+   clGetPlatformInfo(platform[plat_id],CL_PLATFORM_NAME,100,infostr,NULL);
+   fprintf(stderr,"Platform name: %s\n",infostr);
+
    // Access a device
    // GPU
-   err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &dev, NULL);
+   err = clGetDeviceIDs(platform[plat_id], CL_DEVICE_TYPE_GPU, 1, &dev, NULL);
    if(err == CL_DEVICE_NOT_FOUND) {
       // CPU
-      err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &dev, NULL);
+      fprintf(stderr,'USING CPU!\n');
+      err = clGetDeviceIDs(platform[plat_id], CL_DEVICE_TYPE_CPU, 1, &dev, NULL);
    }
    if(err < 0) {
       perror("Couldn't access any devices");
@@ -84,7 +92,6 @@ clh_build_program (cl_context ctx, cl_device_id dev, const char* filename)
    */
    err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
    if(err < 0) {
-
       /* Find size of log and print to std output */
       clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 
             0, NULL, &log_size);
