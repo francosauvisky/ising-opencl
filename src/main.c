@@ -32,7 +32,7 @@ main ()
       exit(1);   
    }
 
-   // Probability vector
+   // Probability vector (index = number of aligned spins in neighborhood?)
    cl_uint prob[prob_length];
    for (int i = 0; i < prob_length; i++)
    {
@@ -53,8 +53,8 @@ main ()
       rand_seed[i] = rand();
    }
 
+   // Allocate memory for the simulation (after completion)
    state_t *f_sys = malloc(iter*svec_length*sizeof(state_t));
-
    for (int i = 0; i < iter*svec_length; i++)
    {
       f_sys[i] = 0;
@@ -164,7 +164,7 @@ main ()
       printf("\n");
    }
 
-   // Deallocate resources
+   // Deallocate resources (IMPORTANT!)
    clReleaseKernel(kernel_ising);
    clReleaseMemObject(rand_buffer);
    clReleaseMemObject(prob_buffer);

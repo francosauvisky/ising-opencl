@@ -1,4 +1,4 @@
-#include "ising_param.h"
+#include "ising-param.h"
 
 typedef int state_t;
 typedef int4 state_v;
