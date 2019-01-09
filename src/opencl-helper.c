@@ -90,7 +90,7 @@ clh_build_program (cl_context ctx, cl_device_id dev, const char* filename)
    define a macro with the option -DMACRO=VALUE and turn off optimization 
    with -cl-opt-disable.
    */
-   err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+   err = clBuildProgram(program, 0, NULL, "-I.", NULL, NULL);
    if(err < 0) {
       /* Find size of log and print to std output */
       clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 

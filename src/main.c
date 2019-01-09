@@ -8,8 +8,6 @@
 #include "ising-param.h"
 #include "opencl-helper.c"
 
-typedef cl_int state_t;
-
 int
 main ()
 {
@@ -36,7 +34,7 @@ main ()
    cl_uint prob[prob_length];
    for (int i = 0; i < prob_length; i++)
    {
-      prob[i] = ( (i < 2)? 1 : exp(-2.0*(i-2)) ) * (float)CL_UINT_MAX;
+      prob[i] = (float)CL_UINT_MAX * ((i < 2)? 1 : exp(-2.0*(i-2)));
    }
 
    // Initial data with random bits (hot start)
@@ -149,20 +147,20 @@ main ()
 
    printf("OpenCl Execution time is: %0.3f milliseconds \n",nanoSeconds / 1e6);
 
-   // Print data collected
-   for(int k = 0; k < iter; k++)
-   {
-      for(int i = 0; i < sizeX; i++)
-      {
-         for (int j = 0; j < sizeY; ++j)
-         {
-            // printf("%d ",(f_sys[svec_length*k+sizeX*i+j]));
-            printf("%c",(f_sys[svec_length*k+sizeX*i+j]==1?'+':'-'));
-         }
-         printf("\n");
-      }
-      printf("\n");
-   }
+   // // Print data collected
+   // for(int k = 0; k < iter; k++)
+   // {
+   //    for(int i = 0; i < sizeX; i++)
+   //    {
+   //       for (int j = 0; j < sizeY; ++j)
+   //       {
+   //          // printf("%d ",(f_sys[svec_length*k+sizeX*i+j]));
+   //          printf("%c",(f_sys[svec_length*k+sizeX*i+j]==1?'+':'-'));
+   //       }
+   //       printf("\n");
+   //    }
+   //    printf("\n");
+   // }
 
    // Deallocate resources (IMPORTANT!)
    clReleaseKernel(kernel_ising);
