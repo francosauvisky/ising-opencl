@@ -51,7 +51,9 @@ counter_incr(global uint* iter_count)
 	*iter_count += 1;
 }
 
-// Parallel sum every cell value from a single state indicated by gind
+// Parallel sum for every cell value from a single state from iteration# *gind
+// size of local buffer = local_size * sizeof(state_t)
+// size of out buffer = iter * sizeof(uint) (if called for every state)
 // > Call: 1D kernel with range [svec_length/2]
 kernel void
 ising_mag(global state_t* states,
@@ -62,18 +64,17 @@ ising_mag(global state_t* states,
 	size_t i   = get_global_id(0),
 			 i_l = get_local_id(0),
 			 i_T = get_local_size(0),
-			 gind_l = *gind,
+			 gind_l = *gind;
 
-	state_buff[i_L] = states[gind_l*svec_length + i]; // copy local buffer
+	state_buff[i_L] = states[gind_l*svec_length + i]; // parallel copy to buffer
 
 	barrier(CLK_LOCAL_MEM_FENCE);
 
 	size_t delta = i_T;
 
-	while(delta > 1)
+	for(uint delta = i_T; delta > 0; delta >> 1)
 	{
 		state_buff[i_L] += state_buff[i_L + delta];
-		delta /= 2;
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
 

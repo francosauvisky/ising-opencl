@@ -1,21 +1,21 @@
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <CL/cl.h>
-
+#include "ising.h"
 #include "ising-param.h"
-#include "opencl-helper.c"
 
 int
 main ()
 {
+	// Allocate memory for the simulation (after completion)
+	state_t *f_sys = malloc(iter*svec_length*sizeof(state_t));
+	for (int i = 0; i < iter*svec_length; i++)
+	{
+		f_sys[i] = 0;
+	}
+
 	// Probability vector (index = number of aligned spins in neighborhood)
 	cl_uint prob[prob_length];
 	for (int i = 0; i < prob_length; i++)
 	{
-		prob[i] = (float)CL_UINT_MAX * ((i < 2)? 1 : exp(-2.0*(i-2)));
+		prob[i] = (float)CL_UINT_MAX * ((i <= 2)? 1 : exp(-2.0*(i-2)));
 	}
 
 	// Initial data with random bits (hot start)
@@ -32,57 +32,11 @@ main ()
 		rand_seed[i] = rand();
 	}
 
-	// Allocate memory for the simulation (after completion)
-	state_t *f_sys = malloc(iter*svec_length*sizeof(state_t));
-	for (int i = 0; i < iter*svec_length; i++)
-	{
-		f_sys[i] = 0;
-	}
-
-	// Create data buffers
-	data_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
-		iter*svec_length*sizeof(state_t), f_sys, &err);
-	rand_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-		iter*sizeof(cl_uint), rand_seed, &err);
-	prob_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY|CL_MEM_COPY_HOST_PTR,
-		prob_length*sizeof(cl_uint), prob, &err);
-	count_buffer = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
-		1*sizeof(cl_uint), &(cl_uint){1}, &err);
-	if(err < 0) {
-		perror("Couldn't create a buffer");
-		exit(1);   
-	};
-
-	// Create command queues 
-	queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
-	if(err < 0) {
-		perror("Couldn't create a command queue");
-		exit(1);   
-	};
-
-	// Build program
-	program = clh_build_program(context, device, PROGRAM_FILE);
-  
-	// Create kernels
-	kernel_ising = clCreateKernel(program, ISING_FUNC, &err);
-	if(err < 0) {
-		perror("Couldn't create a kernel");
-		exit(1);
-	};
-
-	// Set kernels arguments
-	err  = clSetKernelArg(kernel_ising, 0, sizeof(cl_mem), &data_buffer);
-	err |= clSetKernelArg(kernel_ising, 1, sizeof(cl_mem), &rand_buffer);
-	err |= clSetKernelArg(kernel_ising, 2, sizeof(cl_mem), &count_buffer);
-	err |= clSetKernelArg(kernel_ising, 3, sizeof(cl_mem), &prob_buffer);
-
-	if(err < 0) {
-		perror("Couldn't create a kernel argument");
-		exit(1);
-	}
-
 	err = clEnqueueWriteBuffer(queue,data_buffer,CL_TRUE,0,svec_length*sizeof(state_t),
 		initial_sys,0,NULL,NULL);
+
+
+
 	err |= clEnqueueMarker(queue,&calc_done[0]);
 
 	// Enqueue kernels
