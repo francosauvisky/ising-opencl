@@ -43,15 +43,19 @@ ising_calc(global state_t* states,
 		  lseed = seeds[lcount];
 
 	state_t self_s = states[cind(lcount-1,i  ,j  )];
-	state_t s_sum  = states[cind(lcount-1,i-1,j  )] +
-					 states[cind(lcount-1,i+1,j  )] +
-					 states[cind(lcount-1,i  ,j-1)] +
-					 states[cind(lcount-1,i  ,j+1)];
+	state_t s_sum  = 2*states[cind(lcount-1,i-1,j  )] +
+					 2*states[cind(lcount-1,i+1,j  )] +
+					 2*states[cind(lcount-1,i  ,j-1)] +
+					 2*states[cind(lcount-1,i  ,j+1)] +
+					 states[cind(lcount-1,i+1,j-1)] +
+					 states[cind(lcount-1,i+1,j+1)] +
+					 states[cind(lcount-1,i-1,j-1)] +
+					 states[cind(lcount-1,i-1,j+1)];
 			  s_sum *= self_s;
 
 	uint par = ((i+j+(lcount%2))%2); // checkboard pattern (0 or 1)
 	uint rand_sample = randomize_seed(randomize_seed(lseed + 42013*(sizeX*i + j)));
-	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 2+s_sum/2]);
+	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 6 +s_sum/2]);
 
 	states[cind(lcount,i,j)] = self_s*flip;
 }

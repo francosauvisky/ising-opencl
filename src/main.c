@@ -22,7 +22,7 @@ main ()
 
 	ising_init();
 	system_t mysys = ising_new();
-	ising_configure(&mysys, initial, 1.8);
+	ising_configure(&mysys, initial, 0.6);
 	ising_enqueue(&mysys);
 	ising_get_data(&mysys, mag_data);
 	ising_get_states(&mysys, states_data);
