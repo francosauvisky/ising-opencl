@@ -19,5 +19,5 @@ typedef cl_char4 state_v;
 // Index macro for 2D -> 1D. f: fast, c: iteration counter
 #define ind(x,y) ( ((x)%sizeX)*sizeX + ((y)%sizeY) )
 #define find(x,y) ( (x)*sizeX + (y) )
-#define cind(c,x,y) ( ((c)%iter)*svec_length + ((x)%sizeX)*sizeX + ((y)%sizeY) )
+#define cind(c,x,y) ( (c)*svec_length + ((x)%sizeX)*sizeX + ((y)%sizeY) )
 #define cfind(c,x,y) ( (c)*svec_length + (x)*sizeX + (y) )

@@ -42,7 +42,7 @@ ising_calc(global state_t* states,
 	uint lcount = *iter_count,
 		  lseed = seeds[lcount];
 
-	state_t self_s = states[cind(lcount-1,i  ,j  )];
+	state_t self_s = states[cfind(lcount-1,i  ,j  )];
 	state_t s_sum  = states[cind(lcount-1,i-1,j  )] +
 					 states[cind(lcount-1,i+1,j  )] +
 					 states[cind(lcount-1,i  ,j-1)] +
@@ -53,7 +53,7 @@ ising_calc(global state_t* states,
 	uint rand_sample = randomize_seed(randomize_seed(lseed + 42013*(sizeX*i + j)));
 	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 2+s_sum/2]);
 
-	states[cind(lcount,i,j)] = self_s*flip;
+	states[cfind(lcount,i,j)] = self_s*flip;
 }
 
 // Parallel sum every cell value from a single state from iteration # *gind

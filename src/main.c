@@ -54,6 +54,7 @@ main ()
 
 		if(_kbhit()) // break if key is pressed
 		{
+			getc(stdin);
 			break;
 		}
 
