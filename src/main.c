@@ -14,7 +14,7 @@ main ()
 
 	ising_init();
 	system_t mysys = ising_new();
-	ising_configure(&mysys, initial, 2.5);
+	ising_configure(&mysys, initial, 2.2);
 	ising_enqueue(&mysys);
 	ising_get_data(&mysys, mag_data);
 	ising_get_states(&mysys, states_data);
@@ -29,12 +29,12 @@ main ()
 		{
 			for (int j = 0; j < sizeX; ++j)
 			{
-				printf("%c ", states_data[svec_length*k+i*sizeX+j]==1?'O':'.');
+				printf("%c ", states_data[svec_length*k+i*sizeX+j]==1?'X':'.');
 			}
 			printf("\n");
 		}
 		printf("Mag: %d\n", mag_data[k]);
-		usleep(50000);
+		usleep(80000);
 	}
 
 	free(initial);

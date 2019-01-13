@@ -10,3 +10,7 @@ make
 ```
 
 That will create a file `ising.out` which is the main executable and can be run standalone.
+
+## Configuration
+
+The main configuration is choosing which platform/device to use. You can query the available OpenCL platforms with the program `clinfo`, then configure `ising.h` definitions properly.

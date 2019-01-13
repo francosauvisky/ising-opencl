@@ -1,5 +1,5 @@
-#define sizeX 64
-#define sizeY 64
+#define sizeX 128
+#define sizeY 128
 #define iter 1024 // number of iteration to calculate each cycle
 #define prob_length 5 // num of neighborhood+1
 #define prob_buff 32 // prob buffer size when using multiple probs

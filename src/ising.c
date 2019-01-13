@@ -277,7 +277,7 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 		cl_uint prob[prob_length];
 		for (int i = 0; i < prob_length; i++)
 		{
-			prob[i] = (float)CL_UINT_MAX * 0.9 * ((i <= 2)? 1 : exp(-beta*(i-2)));
+			prob[i] = (float)CL_UINT_MAX * ((i <= 2)? 1 : exp(-beta*(i-2)));
 		}
 
 		err |= clEnqueueWriteBuffer(queue[0], cursys->prob, CL_FALSE, 0,
