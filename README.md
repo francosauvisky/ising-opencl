@@ -9,4 +9,4 @@ cd ./src/
 make
 ```
 
-That will create a file ising.out which is the main executable.
+That will create a file 'ising.out' which is the main executable and can be run standalone.
