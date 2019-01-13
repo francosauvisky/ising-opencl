@@ -120,6 +120,7 @@ cl_device_id device;
 cl_context context;
 cl_program program;
 cl_command_queue queue[NUM_QUEUE];
+cl_event *calc_done;
 
 cl_mem rand_buff_g;
 cl_kernel kernel_rand;
@@ -154,6 +155,10 @@ ising_init()
 
 	// Build program
 	program = clh_build_program(context, device, PROGRAM_FILE);
+
+	// Event list	
+	calc_done = malloc(4*iter*sizeof(cl_event));
+
 
 	// Random seeds (1 per iteration)
 	cl_uint rand_seed[iter];
@@ -315,8 +320,6 @@ ising_config_betas(system_t *cursys, uint count, float *betas)
 int
 ising_enqueue(system_t *cursys)
 {
-	cl_event *calc_done = malloc(4*iter*sizeof(cl_event));
-
 	cl_int err = clEnqueueMarker(queue[1],&calc_done[0]);
 	err |= clEnqueueMarker(queue[1],&calc_done[1]);
 	err |= clEnqueueMarker(queue[1],&calc_done[2]);
@@ -331,13 +334,26 @@ ising_enqueue(system_t *cursys)
 		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[0], 2, NULL,
 			global_2D_size, local_2D_size, 2, &calc_done[4*i-4], &calc_done[4*i]);
 
+		// Increment counters
+		err |= clEnqueueTask(queue[1], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
+
+		if(err < 0){
+			printf("%d \n", err);
+			perror("Couldn't enqueue the kernel");
+			exit(1);
+		}
+	}
+
+	for(int i = 1; i < iter; i++)
+	{
+		fprintf(stderr,"Enqueue loop %d\n", i);
+
 		// Measure:
-		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[2], 1, NULL,
+		err |= clEnqueueNDRangeKernel(queue[0], cursys->kernel[2], 1, NULL,
 			(size_t[]){svec_length}, local_1D_size, 2, &calc_done[4*i-1], &calc_done[4*i+2]);
 
 		// Increment counters
-		err |= clEnqueueTask(queue[1], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
-		err |= clEnqueueTask(queue[1], cursys->kernel[5], 1, &calc_done[4*i+2], &calc_done[4*i+3]);
+		err |= clEnqueueTask(queue[0], cursys->kernel[5], 1, &calc_done[4*i+2], &calc_done[4*i+3]);
 
 		if(err < 0){
 			printf("%d \n", err);
@@ -413,4 +429,29 @@ ising_free(system_t *cursys)
 		clReleaseProgram(program);
 		clReleaseContext(context);
 	}
+}
+
+#define ev_count 4
+void
+ising_profile()
+{
+	double runtimes[ev_count];
+
+	for (int i = 4; i < ev_count*iter; ++i)
+	{
+		cl_ulong time_start;
+		cl_ulong time_end;
+
+		clGetEventProfilingInfo(calc_done[i], CL_PROFILING_COMMAND_START,
+			sizeof(time_start), &time_start, NULL);
+		clGetEventProfilingInfo(calc_done[i], CL_PROFILING_COMMAND_END,
+			sizeof(time_end), &time_end, NULL);
+
+		runtimes[i%ev_count] += time_end-time_start;
+	}
+
+	printf("Mean runtime for each kernel:\nMain: %5.3f µs\nMeasure: %5.3f µs\n"\
+		"Counter 1: %5.3f µs\nCounter 2: %5.3f µs\n",
+		runtimes[0]/1e3/iter, runtimes[2]/1e3/iter, runtimes[1]/1e3/iter,
+		runtimes[3]/1e3/iter);
 }

@@ -39,11 +39,12 @@ typedef struct ising_ocl
 
 // Public function prototypes:
 int ising_init(void);
-system_t ising_new();
+system_t ising_new(void);
 int ising_free(system_t *);
 int ising_enqueue(system_t *);
 int ising_configure(system_t *, state_t *, float);
 int ising_get_states(system_t *, state_t *);
 int ising_get_data(system_t *, int *);
+void ising_profile(void);
 
 #endif

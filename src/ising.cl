@@ -50,7 +50,7 @@ ising_calc(global state_t* states,
 			  s_sum *= self_s;
 
 	uint par = ((i+j+(lcount%2))%2); // checkboard pattern (0 or 1)
-	uint rand_sample = randomize_seed(lseed + 137*(sizeX*i + j));
+	uint rand_sample = randomize_seed(lseed + 42013*(sizeX*i + j));
 	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 2+s_sum/2]);
 
 	states[cind(lcount,i,j)] = self_s*flip;
