@@ -113,7 +113,7 @@ clh_build_program (cl_context ctx, cl_device_id dev, const char* filename)
 
 // -------------- Main ising code
 
-#define NUM_QUEUE 2
+#define NUM_QUEUE 3
 
 // OpenCL global variables (can't be directly accessed outside this file)
 cl_device_id device;
@@ -267,12 +267,12 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 	cl_int err = 0;
 
 	// fill the output buffer with 0
-	clEnqueueFillBuffer(queue[0], cursys->output, (uint[]){0}, sizeof(uint),
+	clEnqueueFillBuffer(queue[2], cursys->output, (uint[]){0}, sizeof(uint),
 		0, iter*sizeof(uint), 0, NULL, NULL);
 
 	if(initial != NULL)
 	{
-		err |= clEnqueueWriteBuffer(queue[0], cursys->state, CL_FALSE, 0,
+		err |= clEnqueueWriteBuffer(queue[2], cursys->state, CL_FALSE, 0,
 			svec_length*sizeof(state_t), initial, 0, NULL, NULL);
 	}
 
@@ -285,7 +285,7 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 			prob[i] = (float)CL_UINT_MAX * ((i <= 2)? 1 : exp(-beta*(i-2)));
 		}
 
-		err |= clEnqueueWriteBuffer(queue[0], cursys->prob, CL_FALSE, 0,
+		err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
 			prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
 	}
 
@@ -294,8 +294,8 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 		exit(1);
 	}
 
-	clFlush(queue[0]);
-	clFinish(queue[0]);
+	clFlush(queue[2]);
+	clFinish(queue[2]);
 }
 
 int
@@ -313,7 +313,7 @@ ising_config_betas(system_t *cursys, uint count, float *betas)
 		}
 	}
 
-	err |= clEnqueueWriteBuffer(queue[0], cursys->prob, CL_FALSE, 0,
+	err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
 		prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
 }
 
@@ -323,7 +323,7 @@ ising_enqueue(system_t *cursys)
 	cl_int err = clEnqueueMarker(queue[1],&calc_done[0]);
 	err |= clEnqueueMarker(queue[1],&calc_done[1]);
 	err |= clEnqueueMarker(queue[1],&calc_done[2]);
-	err |= clEnqueueMarker(queue[1],&calc_done[3]);
+	err |= clEnqueueMarker(queue[1],&calc_done[3]); // "blank" events
 
 	// Enqueue kernels
 	for(int i = 1; i < iter; i++)
@@ -334,25 +334,14 @@ ising_enqueue(system_t *cursys)
 		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[0], 2, NULL,
 			global_2D_size, local_2D_size, 2, &calc_done[4*i-4], &calc_done[4*i]);
 
-		// Increment counters
-		err |= clEnqueueTask(queue[1], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
-
-		if(err < 0){
-			printf("%d \n", err);
-			perror("Couldn't enqueue the kernel");
-			exit(1);
-		}
-	}
-
-	for(int i = 1; i < iter; i++)
-	{
-		fprintf(stderr,"Enqueue loop %d\n", i);
+		// Increment counter
+		err |= clEnqueueTask(queue[0], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
 
 		// Measure:
-		err |= clEnqueueNDRangeKernel(queue[0], cursys->kernel[2], 1, NULL,
+		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[2], 1, NULL,
 			(size_t[]){svec_length}, local_1D_size, 2, &calc_done[4*i-1], &calc_done[4*i+2]);
 
-		// Increment counters
+		// Increment counter
 		err |= clEnqueueTask(queue[0], cursys->kernel[5], 1, &calc_done[4*i+2], &calc_done[4*i+3]);
 
 		if(err < 0){
@@ -366,9 +355,10 @@ ising_enqueue(system_t *cursys)
 int
 ising_get_states(system_t *cursys, state_t *states)
 {
+	clFinish(queue[0]);
 	clFinish(queue[1]);
 
-	cl_int err = clEnqueueReadBuffer(queue[0], cursys->state, CL_TRUE, 0,
+	cl_int err = clEnqueueReadBuffer(queue[2], cursys->state, CL_TRUE, 0,
 		iter*svec_length*sizeof(state_t), states, 0, NULL, NULL);
 	if(err < 0) {
 		perror("Couldn't read the buffer");
@@ -379,9 +369,10 @@ ising_get_states(system_t *cursys, state_t *states)
 int
 ising_get_data(system_t *cursys, int *data)
 {
+	clFinish(queue[0]);
 	clFinish(queue[1]);
 
-	cl_int err = clEnqueueReadBuffer(queue[0], cursys->output, CL_TRUE, 0,
+	cl_int err = clEnqueueReadBuffer(queue[2], cursys->output, CL_TRUE, 0,
 		iter*sizeof(cl_int), data, 0, NULL, NULL);
 	if(err < 0) {
 		perror("Couldn't read the buffer");
@@ -450,7 +441,7 @@ ising_profile()
 		runtimes[i%ev_count] += time_end-time_start;
 	}
 
-	printf("Mean runtime for each kernel:\nMain: %5.3f µs\nMeasure: %5.3f µs\n"\
+	printf("Mean runtime for each kernel per iteration:\nMain: %5.3f µs\nMeasure: %5.3f µs\n"\
 		"Counter 1: %5.3f µs\nCounter 2: %5.3f µs\n",
 		runtimes[0]/1e3/iter, runtimes[2]/1e3/iter, runtimes[1]/1e3/iter,
 		runtimes[3]/1e3/iter);
