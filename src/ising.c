@@ -1,18 +1,11 @@
 #include "ising.h"
 #include "ising-param.h"
 
-#define NUM_QUEUE 4
+// -------------- OpenCL "helper"
+// This part was copied from some examples found over the Internet, with
+// minor modifications
 
-// OpenCL global variables (can't be directly accessed outside this file)
-cl_device_id device;
-cl_context context;
-cl_program program;
-cl_command_queue queue[NUM_QUEUE];
-int sys_count = 0;
-
-#define num_plat 4
-#define plat_id 1
-/* Find a GPU or CPU associated with the first available platform 
+/* Find a GPU or CPU associated with the choosen platform 
 
 The `platform` structure identifies the first platform identified by the 
 OpenCL runtime. A platform identifies a vendor's installation, so a system 
@@ -46,7 +39,7 @@ clh_create_device ()
 	err = clGetDeviceIDs(platform[plat_id], CL_DEVICE_TYPE_GPU, 1, &dev, NULL);
 	if(err == CL_DEVICE_NOT_FOUND) {
 		// CPU
-		fprintf(stderr,'USING CPU!\n');
+		fprintf(stderr,"USING CPU!\n");
 		err = clGetDeviceIDs(platform[plat_id], CL_DEVICE_TYPE_CPU, 1, &dev, NULL);
 	}
 	if(err < 0) {
@@ -105,12 +98,11 @@ clh_build_program (cl_context ctx, cl_device_id dev, const char* filename)
 	err = clBuildProgram(program, 0, NULL, "-I.", NULL, NULL);
 	if(err < 0) {
 		/* Find size of log and print to std output */
-		clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 
-				0, NULL, &log_size);
+		clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
 		program_log = (char*) malloc(log_size + 1);
 		program_log[log_size] = '\0';
-		clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, 
-				log_size + 1, program_log, NULL);
+		clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG, log_size + 1,
+				program_log, NULL);
 		printf("%s\n", program_log);
 		free(program_log);
 		exit(1);
@@ -119,10 +111,28 @@ clh_build_program (cl_context ctx, cl_device_id dev, const char* filename)
 	return program;
 }
 
-// Initialize basic ising structures, build program and create kernels
+// -------------- Main ising code
+
+#define NUM_QUEUE 2
+
+// OpenCL global variables (can't be directly accessed outside this file)
+cl_device_id device;
+cl_context context;
+cl_program program;
+cl_command_queue queue[NUM_QUEUE];
+
+cl_mem rand_buff_g;
+cl_kernel kernel_rand;
+cl_event last_event;
+
+int sys_count = 0;
+int sys_init = 0;
+
+// Initialize basic ising global structures, build program and random buffer
 int
 ising_init()
 {
+	cl_int err=0;
 	// Create device and context
 	device = clh_create_device();
 	context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
@@ -131,10 +141,11 @@ ising_init()
 		return(1);   
 	}
 
-	// Create command queues 
+	// Create command queues
 	for (int i = 0; i < NUM_QUEUE; ++i)
 	{
-		queue[i] = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
+		queue[i] = clCreateCommandQueue(context, device,
+			CL_QUEUE_PROFILING_ENABLE, &err);
 	}
 	if(err < 0) {
 		perror("Couldn't create a command queue");
@@ -144,7 +155,28 @@ ising_init()
 	// Build program
 	program = clh_build_program(context, device, PROGRAM_FILE);
 
+	// Random seeds (1 per iteration)
+	cl_uint rand_seed[iter];
+	for(int i = 0; i < iter; i++)
+	{
+		rand_seed[i] = rand();
+	}
 
+	// Create and write random buffer
+	rand_buff_g = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
+		iter*sizeof(cl_uint), rand_seed, &err);
+
+	// Create random generator kernel
+	kernel_rand = clCreateKernel(program, RAND_FUNC, &err);
+
+	// Set random generator kernel arguments
+	err |= clSetKernelArg(kernel_rand, 0, sizeof(cl_mem), &rand_buff_g);
+	if(err < 0) {
+		perror("Couldn't create a kernel argument");
+		exit(1);
+	}
+
+	sys_init == 1;
 	return 0;
 }
 
@@ -155,51 +187,230 @@ ising_new()
 	cl_int err = 0;
 
 	// Create buffers
+	newsys->rand_buff = rand_buff_g; // Buffer already allocated on init
+
 	newsys->state = clCreateBuffer(context, CL_MEM_READ_WRITE,
 		iter*svec_length*sizeof(state_t), NULL, &err);
-	newsys->rand_buff = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		iter*sizeof(cl_uint), NULL, &err);
+
+	newsys->output = clCreateBuffer(context, CL_MEM_READ_WRITE,
+		iter*sizeof(cl_int), NULL, &err);
+
 	newsys->prob = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		prob_length*sizeof(cl_uint), NULL, &err);
-	newsys->iter_count = clCreateBuffer(context, CL_MEM_READ_WRITE|CL_MEM_COPY_HOST_PTR,
-		1*sizeof(cl_uint), &(cl_uint){1}, &err);
+		prob_buff*prob_length*sizeof(cl_uint), NULL, &err);
+
+	newsys->counter[0] = clCreateBuffer(context, CL_MEM_READ_WRITE |
+		CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &(cl_uint){1}, &err);
+
+	for (int i = 1; i < NUM_COUNT; ++i)
+	{
+		newsys->counter[i] = clCreateBuffer(context, CL_MEM_READ_WRITE |
+			CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &(cl_uint){0}, &err);
+	}
+
 	if(err < 0) {
 		perror("Couldn't create a buffer");
-		exit(1);   
+		exit(1);
 	}
 
 	// Create kernels
-	cl_uint k_num = 0;
-	err = clCreateKernelsInProgram(program, NUM_KERNEL, newsys->kernel, &k_num);
-	if((err < 0)||(k_num == 0)) {
+	newsys->kernel[0] = clCreateKernel(program, ISING_FUNC, &err);
+	newsys->kernel[1] = kernel_rand;
+	newsys->kernel[2] = clCreateKernel(program, MEAS_FUNC, &err);
+	newsys->kernel[3] = clCreateKernel(program, INCR_FUNC, &err);
+	newsys->kernel[4] = clCreateKernel(program, COUNTER_FUNC, &err);
+	newsys->kernel[5] = clCreateKernel(program, COUNTER_FUNC, &err);
+	if(err < 0) {
 		perror("Couldn't create a kernel");
-		return(1);
+		exit(1);
 	}
 
 	// Set base kernel arguments
 	err  = clSetKernelArg(newsys->kernel[0], 0, sizeof(cl_mem), &newsys->state);
 	err |= clSetKernelArg(newsys->kernel[0], 1, sizeof(cl_mem), &newsys->rand_buff);
-	err |= clSetKernelArg(newsys->kernel[0], 2, sizeof(cl_mem), &newsys->prob);
-	err |= clSetKernelArg(newsys->kernel[0], 3, sizeof(cl_mem), &newsys->iter_count);
+	err |= clSetKernelArg(newsys->kernel[0], 2, sizeof(cl_mem), &newsys->counter[0]);
+	err |= clSetKernelArg(newsys->kernel[0], 3, sizeof(cl_mem), &newsys->prob);
+	err |= clSetKernelArg(newsys->kernel[0], 4, sizeof(cl_mem), &newsys->counter[1]);
+
+	// Set measurement kernel arguments
+	err |= clSetKernelArg(newsys->kernel[2], 0, sizeof(cl_mem), &newsys->state);
+	err |= clSetKernelArg(newsys->kernel[2], 1, sizeof(cl_mem), &newsys->counter[2]);
+	err |= clSetKernelArg(newsys->kernel[2], 2, sizeof(cl_mem), &newsys->output);
+	err |= clSetKernelArg(newsys->kernel[2], 3, local_length*sizeof(cl_int), NULL);
+
+	// Set next_prob kernel arguments
+	err |= clSetKernelArg(newsys->kernel[3], 0, sizeof(cl_mem), &newsys->counter[0]);
+	err |= clSetKernelArg(newsys->kernel[3], 1, sizeof(cl_mem), &newsys->counter[1]);
+
+	// Set counter0 kernel arguments
+	err |= clSetKernelArg(newsys->kernel[4], 0, sizeof(cl_mem), &newsys->counter[0]);
+
+	// Set counter2 kernel arguments
+	err |= clSetKernelArg(newsys->kernel[5], 0, sizeof(cl_mem), &newsys->counter[2]);
+
 	if(err < 0) {
 		perror("Couldn't create a kernel argument");
 		exit(1);
 	}
 
 	sys_count++;
-	return newsys;
-}
-
-
-
-int
-ising_queue(system_t *cursys, uint iter, size_t op_num, ising_op *ops_todo)
-{
-
+	return *newsys;
 }
 
 int
-ising_get(system_t *cursys, void *data)
+ising_configure(system_t *cursys, state_t *initial, float beta)
 {
+	cl_int err = 0;
 
+	// fill the output buffer with 0
+	clEnqueueFillBuffer(queue[0], cursys->output, (uint[]){0}, sizeof(uint),
+		0, iter*sizeof(uint), 0, NULL, NULL);
+
+	if(initial != NULL)
+	{
+		err |= clEnqueueWriteBuffer(queue[0], cursys->state, CL_FALSE, 0,
+			svec_length*sizeof(state_t), initial, 0, NULL, NULL);
+	}
+
+	if(beta != 0.0)
+	{
+		// Probability vector (index = number of aligned spins in neighborhood)
+		cl_uint prob[prob_length];
+		for (int i = 0; i < prob_length; i++)
+		{
+			prob[i] = (float)CL_UINT_MAX * 0.9 * ((i <= 2)? 1 : exp(-beta*(i-2)));
+		}
+
+		err |= clEnqueueWriteBuffer(queue[0], cursys->prob, CL_FALSE, 0,
+			prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+	}
+
+	if(err < 0) {
+		perror("Couldn't write buffers");
+		exit(1);
+	}
+
+	clFlush(queue[0]);
+	clFinish(queue[0]);
+}
+
+int
+ising_config_betas(system_t *cursys, uint count, float *betas)
+{
+	cl_int err;
+	cl_uint prob[count*prob_length];
+
+	for (int k = 0; k < count; ++k)
+	{
+		for (int i = 0; i < prob_length; i++)
+		{
+			prob[prob_length * k + i] = (float)CL_UINT_MAX *
+				((i <= 2)? 1 : exp(-betas[k]*(i-2)));
+		}
+	}
+
+	err |= clEnqueueWriteBuffer(queue[0], cursys->prob, CL_FALSE, 0,
+		prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+}
+
+int
+ising_enqueue(system_t *cursys)
+{
+	cl_event *calc_done = malloc(4*iter*sizeof(cl_event));
+
+	cl_int err = clEnqueueMarker(queue[1],&calc_done[0]);
+	err |= clEnqueueMarker(queue[1],&calc_done[1]);
+	err |= clEnqueueMarker(queue[1],&calc_done[2]);
+	err |= clEnqueueMarker(queue[1],&calc_done[3]);
+
+	// Enqueue kernels
+	for(int i = 1; i < iter; i++)
+	{
+		fprintf(stderr,"Enqueue loop %d\n", i);
+
+		// Calculate next iteration:
+		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[0], 2, NULL,
+			global_2D_size, local_2D_size, 2, &calc_done[4*i-4], &calc_done[4*i]);
+
+		// Measure:
+		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[2], 1, NULL,
+			(size_t[]){svec_length}, local_1D_size, 2, &calc_done[4*i-1], &calc_done[4*i+2]);
+
+		// Increment counters
+		err |= clEnqueueTask(queue[1], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
+		err |= clEnqueueTask(queue[1], cursys->kernel[5], 1, &calc_done[4*i+2], &calc_done[4*i+3]);
+
+		if(err < 0){
+			printf("%d \n", err);
+			perror("Couldn't enqueue the kernel");
+			exit(1);
+		}
+	}
+}
+
+int
+ising_get_states(system_t *cursys, state_t *states)
+{
+	clFinish(queue[1]);
+
+	cl_int err = clEnqueueReadBuffer(queue[0], cursys->state, CL_TRUE, 0,
+		iter*svec_length*sizeof(state_t), states, 0, NULL, NULL);
+	if(err < 0) {
+		perror("Couldn't read the buffer");
+		exit(1);
+	}
+}
+
+int
+ising_get_data(system_t *cursys, int *data)
+{
+	clFinish(queue[1]);
+
+	cl_int err = clEnqueueReadBuffer(queue[0], cursys->output, CL_TRUE, 0,
+		iter*sizeof(cl_int), data, 0, NULL, NULL);
+	if(err < 0) {
+		perror("Couldn't read the buffer");
+		exit(1);
+	}
+}
+
+int
+ising_next_prob(system_t *cursys)
+{
+	clFinish(queue[1]);
+
+	cl_int err = clEnqueueTask(queue[1], cursys->kernel[3], 0, NULL, NULL);
+	if(err < 0) {
+		perror("Couldn't enqueue task");
+		exit(1);
+	}
+}
+
+int
+ising_free(system_t *cursys)
+{
+	sys_count--;
+
+	clReleaseMemObject(cursys->state);
+	clReleaseMemObject(cursys->rand_buff);
+	clReleaseMemObject(cursys->prob);
+	
+	for (int i = 0; i < NUM_KERNEL; ++i)
+	{
+		clReleaseKernel(cursys->kernel[i]);
+	}
+
+	for (int i = 0; i < NUM_COUNT; ++i)
+	{
+		clReleaseMemObject(cursys->counter[i]);
+	}
+
+	if(sys_count<=0)
+	{
+		for (int i = 0; i < NUM_QUEUE; ++i)
+		{
+			clReleaseCommandQueue(queue[i]);
+		}
+		clReleaseProgram(program);
+		clReleaseContext(context);
+	}
 }

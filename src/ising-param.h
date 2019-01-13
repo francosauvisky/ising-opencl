@@ -1,12 +1,8 @@
-#define PROGRAM_FILE "ising.cl"
-#define ISING_FUNC "ising_calc"
-#define CINCR_FUNC "counter_incr"
-#define SAVE_FUNC "ising_save"
-
 #define sizeX 64
 #define sizeY 64
-#define iter 512
+#define iter 1024
 #define prob_length 5 // num of neighborhood+1
+#define prob_buff 64 // number of prob vectors to buffer
 
 #define svec_length sizeX*sizeY
 
