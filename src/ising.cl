@@ -26,6 +26,15 @@ uint MWC64X(uint2 *state)
     return res;                       // Return the next result
 }
 
+// 4-period checkboard
+uint checkboard(uint k, uint i, uint j)
+{
+	uint c = k%4;
+	i += c%2;
+	j += c/2;
+	return (i%2) && (j%2);
+}
+
 // Calculate next cell state with Metropolis algorithm. The cells are
 // selected with a checkerboard pattern using a simple neighborhood,
 // avoiding race conditions (updating two interacting cells simultaniously)
@@ -53,7 +62,7 @@ ising_calc(global state_t* states,
 					 states[cind(lcount-1,i-1,j+1)];
 			  s_sum *= self_s;
 
-	uint par = ((i+j+(lcount%2))%2); // checkboard pattern (0 or 1)
+	uint par = checkboard(lcount,i,j); // checkboard pattern (0 or 1)
 	uint rand_sample = randomize_seed(randomize_seed(lseed + 42013*(sizeX*i + j)));
 	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 6 +s_sum/2]);
 
