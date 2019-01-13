@@ -1,8 +1,8 @@
 #define sizeX 64
 #define sizeY 64
-#define iter 1024
+#define iter 1024 // number of iteration to calculate each cycle
 #define prob_length 5 // num of neighborhood+1
-#define prob_buff 64 // number of prob vectors to buffer
+#define prob_buff 32 // prob buffer size when using multiple probs
 
 #define svec_length sizeX*sizeY
 

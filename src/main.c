@@ -14,10 +14,11 @@ main ()
 
 	ising_init();
 	system_t mysys = ising_new();
-	ising_configure(&mysys, initial, 1.5);
+	ising_configure(&mysys, initial, 2.5);
 	ising_enqueue(&mysys);
 	ising_get_data(&mysys, mag_data);
 	ising_get_states(&mysys, states_data);
+	ising_free(&mysys);
 
 	// Print states/data
 	for (int k = 0; k < iter; ++k)
@@ -36,7 +37,6 @@ main ()
 		usleep(50000);
 	}
 
-	ising_free(&mysys);
 	free(initial);
 	free(states_data);
 	free(mag_data);
