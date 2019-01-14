@@ -40,7 +40,8 @@ ising_calc(global state_t* states,
 	size_t i = get_global_id(0),
 		   j = get_global_id(1);
 	uint lcount = *iter_count,
-		  lseed = seeds[lcount];
+		  lseed = seeds[lcount],
+		  lprob = *prob_n;
 
 	state_t self_s = states[cfind(lcount-1,i  ,j  )];
 	state_t s_sum  = states[cind(lcount-1,i-1,j  )] +
@@ -51,7 +52,8 @@ ising_calc(global state_t* states,
 
 	uint par = ((i+j+(lcount%2))%2); // checkboard pattern (0 or 1)
 	uint rand_sample = randomize_seed(randomize_seed(lseed + 42013*(sizeX*i + j)));
-	int flip = 1 - 2 * par * (rand_sample < probs[prob_length*(*prob_n) + 2+s_sum/2]);
+	int flip = 1 - 2 * par *
+	(rand_sample < probs[prob_length*lprob + prob_zero + s_sum/2]);
 
 	states[cfind(lcount,i,j)] = self_s*flip;
 }
@@ -99,10 +101,8 @@ ising_rand(global uint *seeds)
 }
 
 kernel void
-next_prob(global uint* iter_count,
-			 global uint* prob_count)
+next_prob(global uint* prob_count)
 {
-	*iter_count = 1;
 	*prob_count += 1;
 }
 

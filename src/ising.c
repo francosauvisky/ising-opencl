@@ -243,8 +243,7 @@ ising_new()
 	err |= clSetKernelArg(newsys->kernel[2], 3, local_length*sizeof(cl_int), NULL);
 
 	// Set next_prob kernel arguments
-	err |= clSetKernelArg(newsys->kernel[3], 0, sizeof(cl_mem), &newsys->counter[0]);
-	err |= clSetKernelArg(newsys->kernel[3], 1, sizeof(cl_mem), &newsys->counter[1]);
+	err |= clSetKernelArg(newsys->kernel[3], 0, sizeof(cl_mem), &newsys->counter[1]);
 
 	// Set counter0 kernel arguments
 	err |= clSetKernelArg(newsys->kernel[4], 0, sizeof(cl_mem), &newsys->counter[0]);
@@ -282,12 +281,16 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 		cl_uint prob[prob_length];
 		for (int i = 0; i < prob_length; i++)
 		{
-			prob[i] = (float)CL_UINT_MAX * 0.5 * ((i <= 2)? 1 : exp(-beta*(i-2)));
+			prob[i] = (float)CL_UINT_MAX * max_prob *
+			((i <= prob_zero)? 1 : exp(-beta*(i-prob_zero)));
 		}
 
 		err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
 			prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+
+		cursys->prob_num = 1;
 	}
+
 
 	if(err < 0) {
 		perror("Couldn't write buffers");
@@ -299,7 +302,7 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 }
 
 int
-ising_config_betas(system_t *cursys, uint count, float *betas)
+ising_configure_betas(system_t *cursys, uint count, float *betas)
 {
 	cl_int err;
 	cl_uint prob[count*prob_length];
@@ -308,13 +311,23 @@ ising_config_betas(system_t *cursys, uint count, float *betas)
 	{
 		for (int i = 0; i < prob_length; i++)
 		{
-			prob[prob_length * k + i] = (float)CL_UINT_MAX *
-				((i <= 2)? 1 : exp(-betas[k]*(i-2)));
+			prob[prob_length * k + i] = (float)CL_UINT_MAX * max_prob *
+				((i <= prob_zero)? 1 : exp(-betas[k]*(i-prob_zero)));
 		}
 	}
 
+	cursys->prob_num = count;
+
 	err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
-		prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+		count*prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+
+	if(err < 0) {
+		perror("Couldn't write buffers");
+		exit(1);
+	}
+
+	clFlush(queue[2]);
+	clFinish(queue[2]);
 }
 
 int
@@ -335,21 +348,32 @@ ising_enqueue(system_t *cursys)
 			global_2D_size, local_2D_size, 2, &calc_done[4*i-4], &calc_done[4*i]);
 
 		// Increment counter
-		err |= clEnqueueTask(queue[0], cursys->kernel[4], 1, &calc_done[4*i], &calc_done[4*i+1]);
+		err |= clEnqueueTask(queue[0], cursys->kernel[4], 1, &calc_done[4*i],
+			&calc_done[4*i+1]);
 
 		// Measure:
 		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[2], 1, NULL,
-			(size_t[]){svec_length}, local_1D_size, 2, &calc_done[4*i-1], &calc_done[4*i+2]);
+			(size_t[]){svec_length/2}, local_1D_size, 2, &calc_done[4*i-1],
+			&calc_done[4*i+2]);
 
 		// Increment counter
-		err |= clEnqueueTask(queue[0], cursys->kernel[5], 1, &calc_done[4*i+2], &calc_done[4*i+3]);
+		err |= clEnqueueTask(queue[0], cursys->kernel[5], 1, &calc_done[4*i+2],
+			&calc_done[4*i+3]);
 
-		if(err < 0){
-			printf("%d \n", err);
-			perror("Couldn't enqueue the kernel");
-			exit(1);
+		if((i % (iter/cursys->prob_num)) == 0)
+		{
+			err |= clEnqueueTask(queue[1], cursys->kernel[3], 1,
+				&calc_done[4*i], NULL);
 		}
 	}
+	if(err < 0){
+		printf("%d \n", err);
+		perror("Couldn't enqueue the kernel");
+		exit(1);
+	}
+
+	clFlush(queue[1]);
+	clFlush(queue[0]);
 }
 
 int

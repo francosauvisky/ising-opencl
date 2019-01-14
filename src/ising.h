@@ -35,6 +35,7 @@ typedef struct ising_ocl
 	cl_mem counter[NUM_COUNT];
 	cl_mem prob;
 	cl_mem output;
+	uint prob_num;
 } system_t;
 
 // Public function prototypes:
@@ -43,6 +44,7 @@ system_t ising_new(void);
 int ising_free(system_t *);
 int ising_enqueue(system_t *);
 int ising_configure(system_t *, state_t *, float);
+int ising_configure_betas(system_t *, uint, float*);
 int ising_get_states(system_t *, state_t *);
 int ising_get_data(system_t *, int *);
 void ising_profile(void);
