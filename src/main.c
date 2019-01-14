@@ -22,7 +22,7 @@ main ()
 
 	ising_init();
 	system_t mysys = ising_new();
-	ising_configure(&mysys, initial, 1.8);
+	ising_configure(&mysys, initial, 3.0);
 	ising_enqueue(&mysys);
 	ising_get_data(&mysys, mag_data);
 	ising_get_states(&mysys, states_data);
@@ -37,13 +37,13 @@ main ()
 		{
 			for (int j = 0; j < sizeX; ++j)
 			{
-				printf("%c ", states_data[svec_length*k+i*sizeX+j]==1?'X':'.');
+				printf("%c ", states_data[svec_length*k+i*sizeX+j]==1?'#':'-');
 			}
 			printf("\n");
 		}
 
 		printf("Iter: %d/%d\n", k, iter);
-		printf("Mag (GPU): %d\n", mag_data[k]);
+		printf("Mag (GPU): %5.4f\n", (float)mag_data[k]/(sizeX*sizeY));
 
 		// int sum = 0;
 		// for (int i = 0; i < svec_length; ++i)
@@ -58,7 +58,7 @@ main ()
 			break;
 		}
 
-		usleep(60000);
+		usleep(100000);
 	}
 
 	ising_profile();
