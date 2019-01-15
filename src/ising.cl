@@ -26,6 +26,17 @@ uint MWC64X(uint2 *state)
     return res;                       // Return the next result
 }
 
+// 4-period checkboard
+uint inline
+checkboard(uint k, uint i, uint j)
+{
+       uint c = k%4;
+       i += c%2;
+       j += c/2;
+       return (i%2) && (j%2);
+       // return (i+j+(k%2))%2;
+}
+
 // Calculate next cell state with Metropolis algorithm. The cells are
 // selected with a checkerboard pattern using a simple neighborhood,
 // avoiding race conditions (updating two interacting cells simultaniously)
@@ -34,26 +45,33 @@ kernel void
 ising_calc(global state_t* states,
 		   global uint* seeds,
 		   global uint* iter_count,
-		   global uint* probs,
-		   global uint* prob_n)
+		   global float* beta,
+		   global uint* beta_n)
 {
 	size_t i = get_global_id(0),
 		   j = get_global_id(1);
 	uint lcount = *iter_count,
 		  lseed = seeds[lcount],
-		  lprob = *prob_n;
+		  lbeta = *beta_n;
 
 	state_t self_s = states[cfind(lcount-1,i  ,j  )];
-	state_t s_sum  = states[cind(lcount-1,i-1,j  )] +
-					 states[cind(lcount-1,i+1,j  )] +
-					 states[cind(lcount-1,i  ,j-1)] +
-					 states[cind(lcount-1,i  ,j+1)];
+
+	float s_sum  = (float)states[cind(lcount-1,i-1,j  )] +
+				   (float)states[cind(lcount-1,i+1,j  )] +
+				   (float)states[cind(lcount-1,i  ,j-1)] +
+				   (float)states[cind(lcount-1,i  ,j+1)] +
+				   (float)states[cind(lcount-1,i-1,j-1)]/1.4142 +
+				   (float)states[cind(lcount-1,i+1,j+1)]/1.4142 +
+				   (float)states[cind(lcount-1,i+1,j-1)]/1.4142 +
+				   (float)states[cind(lcount-1,i-1,j+1)]/1.4142;
 			  s_sum *= self_s;
 
-	uint par = ((i+j+(lcount%2))%2); // checkboard pattern (0 or 1)
+	uint par = checkboard(lcount, i, j); // checkboard pattern (0 or 1)
+
 	uint rand_sample = randomize_seed(randomize_seed(lseed + 42013*(sizeX*i + j)));
-	int flip = 1 - 2 * par *
-	(rand_sample < probs[prob_length*lprob + prob_zero + s_sum/2]);
+
+	int flip = 1 - 2 * par * (rand_sample <
+		UINT_MAX*( (s_sum>0) ? exp(-beta[lbeta]*s_sum/2)*max_prob : max_prob) );
 
 	states[cfind(lcount,i,j)] = self_s*flip;
 }

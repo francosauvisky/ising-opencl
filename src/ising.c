@@ -201,7 +201,7 @@ ising_new()
 		iter*sizeof(cl_int), NULL, &err);
 
 	newsys->prob = clCreateBuffer(context, CL_MEM_READ_WRITE,
-		prob_buff*prob_length*sizeof(cl_uint), NULL, &err);
+		prob_buff*sizeof(cl_float), NULL, &err);
 
 	newsys->counter[0] = clCreateBuffer(context, CL_MEM_READ_WRITE |
 		CL_MEM_COPY_HOST_PTR, sizeof(cl_uint), &(cl_uint){1}, &err);
@@ -277,16 +277,8 @@ ising_configure(system_t *cursys, state_t *initial, float beta)
 
 	if(beta != 0.0)
 	{
-		// Probability vector (index = number of aligned spins in neighborhood)
-		cl_uint prob[prob_length];
-		for (int i = 0; i < prob_length; i++)
-		{
-			prob[i] = (float)CL_UINT_MAX * max_prob *
-			((i <= prob_zero)? 1 : exp(-beta*(i-prob_zero)));
-		}
-
 		err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
-			prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+			sizeof(cl_float), &beta, 0, NULL, NULL);
 
 		cursys->prob_num = 1;
 	}
@@ -305,21 +297,11 @@ int
 ising_configure_betas(system_t *cursys, uint count, float *betas)
 {
 	cl_int err;
-	cl_uint prob[count*prob_length];
-
-	for (int k = 0; k < count; ++k)
-	{
-		for (int i = 0; i < prob_length; i++)
-		{
-			prob[prob_length * k + i] = (float)CL_UINT_MAX * max_prob *
-				((i <= prob_zero)? 1 : exp(-betas[k]*(i-prob_zero)));
-		}
-	}
 
 	cursys->prob_num = count;
 
-	err |= clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
-		count*prob_length*sizeof(cl_uint), prob, 0, NULL, NULL);
+	err = clEnqueueWriteBuffer(queue[2], cursys->prob, CL_FALSE, 0,
+		count*sizeof(cl_float), betas, 0, NULL, NULL);
 
 	if(err < 0) {
 		perror("Couldn't write buffers");
