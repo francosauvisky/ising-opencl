@@ -43,7 +43,7 @@ main ()
 	printf("\e[1;1H\e[2J"); // clear screen
 	for (int k = 0; k < iter; k+=1)
 	{
-		printf("\033[0;0H");
+		printf("\033[0;0H"); // cursor to (0,0)
 
 		for (int i = 0; i < sizeY; ++i)
 		{
@@ -54,9 +54,16 @@ main ()
 			printf("\n");
 		}
 
+		// Calculate mag on CPU (sum of every cell)
+		int sum = 0;
+		for (int i = 0; i < svec_length; ++i)
+		{
+			sum += states_data[svec_length*k+i];
+		}
+
 		printf("Iter: %d/%d\n", k, iter);
 		printf("Mag (GPU): %+5.4f\n", 2*(float)mag_data[k]/(sizeX*sizeY));
-
+		printf("Mag (CPU): %+5.4f\n", 2*(float)sum/(sizeX*sizeY));
 		printf("[");
 		for (int i = 0; i < 100; ++i)
 		{
@@ -64,13 +71,7 @@ main ()
 		}
 		printf("]\n");
 		printf("                                                  |\n");
-
-		// int sum = 0;
-		// for (int i = 0; i < svec_length; ++i)
-		// {
-		// 	sum += states_data[svec_length*k+i];
-		// }
-		// printf("Mag (CPU): %d\n", mag_data[k]);
+		printf("                                                  0\n");
 
 		if(kbhit()) // break if key is pressed
 		{

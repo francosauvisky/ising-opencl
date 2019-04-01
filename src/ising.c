@@ -341,7 +341,7 @@ ising_enqueue(system_t *cursys)
 	// Enqueue kernels
 	for(int i = 1; i < iter; i++)
 	{
-		fprintf(stderr,"Enqueue loop %d\n", i);
+		fprintf(stderr,"\rEnqueue loop %d", i);
 
 		// Calculate next iteration:
 		err |= clEnqueueNDRangeKernel(queue[1], cursys->kernel[0], 2, NULL,

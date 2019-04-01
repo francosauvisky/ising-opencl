@@ -2,7 +2,7 @@
 #define sizeX 64
 #define iter 1024 // number of iteration to calculate each cycle
 #define prob_length 5 // num of neighborhood+1
-#define prob_buff 128 // prob buffer size when using multiple probs
+#define prob_buff 16 // prob buffer size when using multiple probs
 
 #define prob_zero ((prob_length-1)/2)
 #define max_prob 1.0
