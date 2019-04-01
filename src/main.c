@@ -6,7 +6,7 @@
 #include <stropts.h>
 #include <sys/ioctl.h>
 
-int _kbhit();
+int kbhit();
 
 int
 main ()
@@ -15,6 +15,7 @@ main ()
 	state_t *states_data = malloc(iter*svec_length*sizeof(state_t));
 	state_t *initial = malloc(svec_length*sizeof(state_t));
 
+	// hot start
 	srand((uint)time(NULL));
 	for (int i = 0; i < svec_length; ++i)
 	{
@@ -28,9 +29,10 @@ main ()
 		betas[i] = 0.5 + 2*i/(float)prob_buff;
 	}
 
+	// Load system and calculate
 	ising_init();
 	system_t mysys = ising_new();
-	ising_configure(&mysys, initial, 1.835);
+	ising_configure(&mysys, initial, 0);
 	ising_configure_betas(&mysys, prob_buff, betas);
 	ising_enqueue(&mysys);
 	ising_get_data(&mysys, mag_data);
@@ -38,9 +40,10 @@ main ()
 	ising_free(&mysys);
 
 	// Print states/data
-	for (int k = 0; k < iter; k+=16)
+	printf("\e[1;1H\e[2J"); // clear screen
+	for (int k = 0; k < iter; k+=1)
 	{
-		printf("\e[1;1H\e[2J"); // clear screen
+		printf("\033[0;0H");
 
 		for (int i = 0; i < sizeY; ++i)
 		{
@@ -69,13 +72,13 @@ main ()
 		// }
 		// printf("Mag (CPU): %d\n", mag_data[k]);
 
-		if(_kbhit()) // break if key is pressed
+		if(kbhit()) // break if key is pressed
 		{
 			getc(stdin);
 			break;
 		}
 
-		usleep(60000);
+		usleep(1000000/30); // 1e6/fps
 	}
 
 	ising_profile();
@@ -90,7 +93,7 @@ main ()
  Linux (POSIX) implementation of _kbhit().
  Morgan McGuire, morgan@cs.brown.edu
  */
-int _kbhit() {
+int kbhit() {
     static const int STDIN = 0;
     static int initialized = 0;
 
