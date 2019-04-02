@@ -15,14 +15,14 @@ main ()
 	state_t *states_data = malloc(iter*svec_length*sizeof(state_t));
 	state_t *initial = malloc(svec_length*sizeof(state_t));
 
-	// hot start
+	// Hot start
 	srand((uint)time(NULL));
 	for (int i = 0; i < svec_length; ++i)
 	{
 		initial[i] = (rand() < (RAND_MAX/2))? 1 : -1;
 	}
 
-	// annealing
+	// Annealing
 	float betas[prob_buff];
 	for (int i = 0; i <= prob_buff; ++i)
 	{
@@ -43,8 +43,9 @@ main ()
 	printf("\e[1;1H\e[2J"); // clear screen
 	for (int k = 0; k < iter; k+=1)
 	{
-		printf("\033[0;0H"); // cursor to (0,0)
+		printf("\033[0;0H"); // Move cursor to (0,0)
 
+		// Print states
 		for (int i = 0; i < sizeY; ++i)
 		{
 			for (int j = 0; j < sizeX; ++j)
@@ -61,6 +62,7 @@ main ()
 			sum += states_data[svec_length*k+i];
 		}
 
+		// Print data
 		printf("Iter: %d/%d\n", k, iter);
 		printf("Mag (GPU): %+5.4f\n", 2*(float)mag_data[k]/(sizeX*sizeY));
 		printf("Mag (CPU): %+5.4f\n", 2*(float)sum/(sizeX*sizeY));
@@ -73,7 +75,7 @@ main ()
 		printf("                                                  |\n");
 		printf("                                                  0\n");
 
-		if(kbhit()) // break if key is pressed
+		if(kbhit()) // Break if key is pressed
 		{
 			getc(stdin);
 			break;
