@@ -26,7 +26,7 @@ main ()
 	float betas[prob_buff];
 	for (int i = 0; i <= prob_buff; ++i)
 	{
-		betas[i] = 0.5 + 2*i/(float)prob_buff;
+		betas[i] = 1./(0.6 - 0.59*i/(float)prob_buff);
 	}
 
 	// Load system and calculate
@@ -46,14 +46,27 @@ main ()
 		printf("\033[0;0H"); // Move cursor to (0,0)
 
 		// Print states
-		for (int i = 0; i < sizeY; ++i)
+		printf("┌");
+		for(int i = 0; i < 2*sizeX/2+2; i++) printf("─");
+		printf("┐\n");
+
+		for (int i = 0; i < sizeY/2; ++i)
 		{
-			for (int j = 0; j < sizeX; ++j)
+		printf("│ ");
+			for (int j = 0; j < sizeX/2; ++j)
 			{
-				printf("%c ", states_data[svec_length*k+i*sizeX+j]==1?'#':'-');
+				state_t sum = states_data[svec_length*k +  i   *sizeX + j  ] +
+				              states_data[svec_length*k + (i+1)*sizeX + j+1] +
+				              states_data[svec_length*k + (i+1)*sizeX + j  ] +
+				              states_data[svec_length*k +  i   *sizeX + j+1];
+				printf("\033[48;5;%3dm  \e[0m",232 + 10 + 2*sum);
 			}
-			printf("\n");
+			printf("\e[0m │\n");
 		}
+
+		printf("└");
+		for(int i = 0; i < 2*sizeX/2+2; i++) printf("─");
+		printf("┘\n");
 
 		// Calculate mag on CPU (sum of every cell)
 		int sum = 0;
@@ -65,7 +78,7 @@ main ()
 		// Print data
 		printf("Iter: %d/%d\n", k, iter);
 		printf("Mag (GPU): %+5.4f\n", 2*(float)mag_data[k]/(sizeX*sizeY));
-		printf("Mag (CPU): %+5.4f\n", 2*(float)sum/(sizeX*sizeY));
+		printf("Mag (CPU): %+5.4f\n", (float)sum/(sizeX*sizeY));
 		printf("[");
 		for (int i = 0; i < 100; ++i)
 		{
